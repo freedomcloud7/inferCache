@@ -1,0 +1,107 @@
+version: "3.9"
+
+services:
+  # ─── InferCache Gateway ─────────────────────────────────────────────
+  gateway:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_BUCKET=infercache-cold
+      - LITELLM_URL=http://litellm:4000
+      - CACHE_TTL_HOT=300
+      - COMPRESSION_RATIO=10
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/infercache
+    depends_on:
+      - redis
+      - minio
+      - litellm
+      - postgres
+    restart: unless-stopped
+
+  # ─── LiteLLM Proxy ──────────────────────────────────────────────────
+  litellm:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.litellm
+    ports:
+      - "4000:4000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    restart: unless-stopped
+
+  # ─── Redis (Hot Cache) ──────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+  # ─── MinIO (Cold Cache) ─────────────────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    volumes:
+      - minio-data:/data
+    restart: unless-stopped
+
+  # ─── PostgreSQL ─────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=infercache
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  # ─── Grafana ────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+      - gateway
+    restart: unless-stopped
+
+  # ─── Prometheus ─────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on:
+      - gateway
+    restart: unless-stopped
+
+volumes:
+  redis-data:
+  minio-data:
+  pg-data:
+  grafana-data:

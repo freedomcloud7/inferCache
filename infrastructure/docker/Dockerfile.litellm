@@ -1,0 +1,15 @@
+# LiteLLM proxy service
+FROM python:3.12-slim
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir "litellm[proxy]>=1.40.0"
+
+# LiteLLM config will be mounted at runtime
+COPY infrastructure/docker/litellm-config.yaml /app/config.yaml
+
+ENV LITELLM_CONFIG=/app/config.yaml
+
+EXPOSE 4000
+
+CMD ["litellm", "--config", "/app/config.yaml", "--port", "4000"]

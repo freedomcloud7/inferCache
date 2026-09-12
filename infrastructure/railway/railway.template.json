@@ -1,0 +1,221 @@
+{
+  "name": "InferCache - KV Cache Optimized LLM Gateway",
+  "description": "Deploy a production-ready LLM gateway with KV-cache compression, two-tier caching (Redis + MinIO), multi-provider routing (OpenAI, Anthropic, Gemini), and Grafana observability.",
+  "icon": "https://raw.githubusercontent.com/nvidia/kvpress/main/docs/source/_static/kvpress_logo.png",
+  "tags": ["llm", "gateway", "cache", "fastapi", "litellm", "redis", "minio", "grafana"],
+  "website": "https://github.com/infercache/infercache",
+  "repository": "https://github.com/infercache/infercache",
+  "keywords": ["llm", "kv-cache", "compression", "gateway", "railway"],
+
+  "services": {
+    "gateway": {
+      "icon": "⚡",
+      "source": {
+        "image": "ghcr.io/infercache/infercache-gateway:latest"
+      },
+      "variables": {
+        "GATEWAY_PORT": {
+          "description": "Port for the gateway",
+          "default": "8080",
+          "required": true
+        },
+        "REDIS_URL": {
+          "description": "Redis connection URL (auto-set by Railway)",
+          "default": "${{redis.REDIS_URL}}",
+          "required": true
+        },
+        "MINIO_ENDPOINT": {
+          "description": "MinIO endpoint (auto-set by Railway)",
+          "default": "${{minio.MINIO_URL}}",
+          "required": true
+        },
+        "MINIO_ACCESS_KEY": {
+          "description": "MinIO access key",
+          "default": "${{minio.MINIO_ACCESS_KEY}}",
+          "required": true
+        },
+        "MINIO_SECRET_KEY": {
+          "description": "MinIO secret key",
+          "default": "${{minio.MINIO_SECRET_KEY}}",
+          "required": true
+        },
+        "MINIO_BUCKET": {
+          "description": "MinIO bucket for cold cache",
+          "default": "infercache-cold",
+          "required": false
+        },
+        "LITELLM_URL": {
+          "description": "LiteLLM proxy URL",
+          "default": "http://litellm:4000",
+          "required": true
+        },
+        "CACHE_TTL_HOT": {
+          "description": "Hot cache TTL in seconds",
+          "default": "300",
+          "required": false
+        },
+        "COMPRESSION_RATIO": {
+          "description": "KV cache compression ratio (10 = 10x reduction)",
+          "default": "10",
+          "required": false
+        },
+        "DATABASE_URL": {
+          "description": "PostgreSQL connection URL",
+          "default": "${{postgres.DATABASE_URL}}",
+          "required": true
+        }
+      },
+      "ports": [
+        {
+          "port": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "healthcheck": {
+        "path": "/health",
+        "interval": 30,
+        "timeout": 10
+      }
+    },
+
+    "litellm": {
+      "icon": "🔀",
+      "source": {
+        "image": "ghcr.io/infercache/infercache-litellm:latest"
+      },
+      "variables": {
+        "OPENAI_API_KEY": {
+          "description": "OpenAI API key",
+          "required": true
+        },
+        "ANTHROPIC_API_KEY": {
+          "description": "Anthropic API key",
+          "required": true
+        },
+        "GEMINI_API_KEY": {
+          "description": "Google Gemini API key",
+          "required": true
+        }
+      },
+      "ports": [
+        {
+          "port": 4000,
+          "protocol": "tcp"
+        }
+      ]
+    },
+
+    "redis": {
+      "icon": "🔥",
+      "source": {
+        "image": "redis:7-alpine"
+      },
+      "variables": {
+        "REDIS_PASSWORD": {
+          "description": "Redis password (optional)",
+          "required": false
+        }
+      },
+      "ports": [
+        {
+          "port": 6379,
+          "protocol": "tcp"
+        }
+      ]
+    },
+
+    "minio": {
+      "icon": "🧊",
+      "source": {
+        "image": "minio/minio:latest"
+      },
+      "variables": {
+        "MINIO_ROOT_USER": {
+          "description": "MinIO root user",
+          "default": "minioadmin",
+          "required": true
+        },
+        "MINIO_ROOT_PASSWORD": {
+          "description": "MinIO root password",
+          "default": "minioadmin",
+          "required": true
+        }
+      },
+      "ports": [
+        {
+          "port": 9000,
+          "protocol": "tcp"
+        }
+      ]
+    },
+
+    "postgres": {
+      "icon": "🐘",
+      "source": {
+        "image": "postgres:16-alpine"
+      },
+      "variables": {
+        "POSTGRES_USER": {
+          "description": "PostgreSQL user",
+          "default": "postgres",
+          "required": true
+        },
+        "POSTGRES_PASSWORD": {
+          "description": "PostgreSQL password",
+          "default": "postgres",
+          "required": true
+        },
+        "POSTGRES_DB": {
+          "description": "PostgreSQL database name",
+          "default": "infercache",
+          "required": true
+        }
+      },
+      "ports": [
+        {
+          "port": 5432,
+          "protocol": "tcp"
+        }
+      ]
+    },
+
+    "grafana": {
+      "icon": "📊",
+      "source": {
+        "image": "grafana/grafana:latest"
+      },
+      "variables": {
+        "GF_SECURITY_ADMIN_PASSWORD": {
+          "description": "Grafana admin password",
+          "default": "admin",
+          "required": true
+        }
+      },
+      "ports": [
+        {
+          "port": 3000,
+          "protocol": "tcp"
+        }
+      ]
+    }
+  },
+
+  "volumes": {
+    "redis-data": {
+      "size": "1GB",
+      "mountPath": "/data"
+    },
+    "minio-data": {
+      "size": "10GB",
+      "mountPath": "/data"
+    },
+    "pg-data": {
+      "size": "5GB",
+      "mountPath": "/var/lib/postgresql/data"
+    },
+    "grafana-data": {
+      "size": "1GB",
+      "mountPath": "/var/lib/grafana"
+    }
+  }
+}
