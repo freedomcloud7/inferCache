@@ -48,11 +48,21 @@ class CacheManager:
     # --- Lifecycle --------------------------------------------------------
 
     async def connect(self) -> None:
-        self._redis = redis.from_url(self.redis_url, decode_responses=True)
-        # Ensure bucket exists (MinIO cold tier)
-        if not self._minio.bucket_exists(self.bucket):
-            self._minio.make_bucket(self.bucket)
-            logger.info("Created MinIO bucket %s", self.bucket)
+        """Connect to backend services with graceful degradation."""
+        try:
+            self._redis = redis.from_url(self.redis_url, decode_responses=True)
+            await self._redis.ping()
+            logger.info("Connected to Redis at %s", self.redis_url)
+        except Exception as exc:
+            logger.warning("Redis unavailable (%s) — caching disabled", exc)
+            self._redis = None
+
+        try:
+            if not self._minio.bucket_exists(self.bucket):
+                self._minio.make_bucket(self.bucket)
+            logger.info("Connected to MinIO at %s", self._minio.endpoint)
+        except Exception as exc:
+            logger.warning("MinIO unavailable (%s) — cold tier disabled", exc)
 
     async def disconnect(self) -> None:
         if self._redis:
@@ -112,12 +122,7 @@ class CacheManager:
                 lambda: self._minio.get_object(self.bucket, self._cold_key(key)),
             )
             data = resp.read()
-            # Cold payload is the compressed blob; decompress via value stored in metadata
-            # For this gateway we store the original value in hot tier already,
-            # so cold tier is only for archival.  Return None — the hot tier miss
-            # + cold tier hit path is handled by the gateway calling get() again
-            # after TTL expiry.
-            return None
+            return None  # simplified — cold tier is archival
         except Exception:
             return None
 
