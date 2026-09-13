@@ -4,5 +4,5 @@ from services.gateway.main import app
 if __name__ == "__main__":
     import uvicorn
     import os
-    port = int(os.getenv("GATEWAY_PORT", "8080"))
+    port = int(os.getenv("PORT") or os.getenv("GATEWAY_PORT") or "8080")
     uvicorn.run(app, host="0.0.0.0", port=port)

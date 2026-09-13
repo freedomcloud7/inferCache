@@ -240,4 +240,6 @@ async def _stream_response(data: dict[str, Any]) -> StreamingResponse:
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("services.gateway.main:app", host="0.0.0.0", port=settings.GATEWAY_PORT)
+    import os
+    port = int(os.getenv("PORT") or os.getenv("GATEWAY_PORT") or "8080")
+    uvicorn.run("services.gateway.main:app", host="0.0.0.0", port=port)
