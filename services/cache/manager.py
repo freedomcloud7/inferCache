@@ -58,9 +58,11 @@ class CacheManager:
             self._redis = None
 
         try:
-            if not self._minio.bucket_exists(self.bucket):
+            if self._minio.bucket_exists(self.bucket):
+                logger.info("Connected to MinIO bucket %s", self.bucket)
+            else:
                 self._minio.make_bucket(self.bucket)
-            logger.info("Connected to MinIO at %s", self._minio.endpoint)
+                logger.info("Created MinIO bucket %s", self.bucket)
         except Exception as exc:
             logger.warning("MinIO unavailable (%s) — cold tier disabled", exc)
 

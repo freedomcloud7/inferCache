@@ -77,15 +77,19 @@ class AppState:
         self.http_client: httpx.AsyncClient | None = None
 
     async def init(self) -> None:
-        self.cache = CacheManager(
-            redis_url=settings.REDIS_URL,
-            minio_endpoint=settings.MINIO_ENDPOINT,
-            minio_access_key=settings.MINIO_ACCESS_KEY,
-            minio_secret_key=settings.MINIO_SECRET_KEY,
-            minio_bucket=settings.MINIO_BUCKET,
-            ttl=settings.CACHE_TTL_HOT,
-        )
-        await self.cache.connect()
+        try:
+            self.cache = CacheManager(
+                redis_url=settings.REDIS_URL,
+                minio_endpoint=settings.MINIO_ENDPOINT,
+                minio_access_key=settings.MINIO_ACCESS_KEY,
+                minio_secret_key=settings.MINIO_SECRET_KEY,
+                minio_bucket=settings.MINIO_BUCKET,
+                ttl=settings.CACHE_TTL_HOT,
+            )
+            await self.cache.connect()
+        except Exception as exc:
+            logger.warning("Cache init failed: %s — running without cache", exc)
+            self.cache = None
 
         self.compressor = OBCompressor(ratio=settings.COMPRESSION_RATIO)
         self.metrics = MetricsCollector()
@@ -171,22 +175,23 @@ async def stats() -> CacheStats:
 
 @app.post("/v1/chat/completions")
 async def chat_completions(request: ChatRequest) -> Any:
-    if not all([state.cache, state.compressor, state.metrics]):
+    if not all([state.compressor, state.metrics]):
         raise HTTPException(status_code=503, detail="Service initializing")
 
-    key = _cache_key(request.model, request.messages)
+    # Try cache lookup if cache is available
+    if state.cache is not None:
+        key = _cache_key(request.model, request.messages)
+        cached = await state.cache.get(key)
+        if cached is not None:
+            state.metrics.record_hit(len(str(request.messages)))
+            if request.stream:
+                return _stream_cached(cached)
+            return JSONResponse(content=cached)
+        state.metrics.record_miss()
+    else:
+        state.metrics.record_miss()
 
-    # Cache HIT
-    cached = await state.cache.get(key)
-    if cached is not None:
-        state.metrics.record_hit(len(str(request.messages)))
-        if request.stream:
-            return _stream_cached(cached)
-        return JSONResponse(content=cached)
-
-    # Cache MISS
-    state.metrics.record_miss()
-
+    # Forward to LiteLLM
     try:
         response = await state.http_client.post(
             f"{settings.LITELLM_URL}/v1/chat/completions",
@@ -199,7 +204,9 @@ async def chat_completions(request: ChatRequest) -> Any:
         raise HTTPException(status_code=502, detail=f"Upstream error: {exc}")
 
     compressed = state.compressor.compress_kv(payload)
-    await state.cache.set(key, payload, compressed)
+    if state.cache is not None:
+        key = _cache_key(request.model, request.messages)
+        await state.cache.set(key, payload, compressed)
 
     tokens_out = payload.get("usage", {}).get("total_tokens", 0)
     state.metrics.record_tokens(tokens_out)
