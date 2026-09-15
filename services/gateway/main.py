@@ -41,6 +41,7 @@ class Settings:
     COMPRESSION_RATIO: int = int(os.getenv("COMPRESSION_RATIO", "10"))
     GATEWAY_PORT: int = int(os.getenv("GATEWAY_PORT", "8080"))
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/infercache")
+    UPSTREAM_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "") or os.getenv("OPENAI_API_KEY", "")
 
 
 settings = Settings()
@@ -192,11 +193,18 @@ async def chat_completions(request: ChatRequest) -> Any:
         state.metrics.record_miss()
 
     # Forward to LiteLLM
+    # Build headers — inject upstream API key if configured
+    headers = {"Content-Type": "application/json"}
+    if settings.UPSTREAM_API_KEY:
+        # Anthropic uses x-api-key, not Authorization: Bearer
+        headers["x-api-key"] = settings.UPSTREAM_API_KEY
+        headers["anthropic-version"] = "2023-06-01"
+
     try:
         response = await state.http_client.post(
             f"{settings.LITELLM_URL}/v1/chat/completions",
             json=request.model_dump(),
-            headers={"Content-Type": "application/json"},
+            headers=headers,
         )
         response.raise_for_status()
         payload = response.json()
