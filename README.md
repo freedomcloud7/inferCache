@@ -1,69 +1,75 @@
 # InferCache
 
-**KV-cache-optimized LLM gateway — slash your inference costs by 10x.**
+**KV-cache-optimized LLM gateway — slash inference costs by 10x with intelligent caching.**
 
-InferCache sits between your application and LLM providers (OpenAI, Anthropic, Gemini) to drastically reduce token costs through intelligent KV-cache compression and hot-tier caching.
+InferCache sits between your application and LLM providers (OpenAI, Anthropic, Gemini) to drastically reduce token costs through KV-cache compression and Redis hot-tier caching.
 
 ---
 
 ## The Problem
 
-Every LLM API call costs money — often $0.01–$0.03 per 1K tokens. For applications with:
+Every LLM API call costs money — $0.005–$0.03 per 1K tokens depending on the model. For applications with:
 
-- **Long conversations** (multi-turn chat, document analysis)
-- **Repeated queries** (code assistants, knowledge bases, RAG systems)
-- **High volume** (100K+ requests/day)
+- **Long conversations** (multi-turn chat, document analysis, coding assistants)
+- **Repeated queries** (knowledge bases, RAG systems, agentic workflows)
+- **High volume** (100K+ requests/day across many users)
 
-…you're paying full price for tokens that produce identical KV cache entries. Most LLM gateways pass every request through unchanged. InferCache stops that waste.
+…you're paying full price for tokens that produce identical KV cache entries. Most LLM gateways pass every request through unchanged — paying the LLM provider for work already done.
+
+### KV Cache: The Hidden Bottleneck
+
+When you send a prompt to an LLM, the model builds a **KV cache** — a large memory structure storing attention keys/values for every token. For a 100K-token context, this can exceed **400MB per session**. Multiply by thousands of concurrent users, and memory (not compute) becomes the scaling limit.
+
+**InferCache solves both problems: cost AND memory.**
 
 ---
 
 ## The Solution
 
-InferCache implements **OBCache-style KV-cache compression** (inspired by [NVIDIA KVPress](https://github.com/NVIDIA/KVPress)) combined with a two-tier caching layer:
+InferCache implements **OBCache-style KV-cache compression** (inspired by [NVIDIA KVPress](https://github.com/NVIDIA/KVPress)) combined with a two-tier caching architecture:
 
 ```
-Your App ──▶ InferCache Gateway ──▶ LiteLLM Proxy ──▶ OpenAI / Anthropic / Gemini
+Your App ──▶ InferCache Gateway ──▶ LLM Provider (OpenAI / Anthropic / Gemini)
                   │
-                  ├── Redis (Hot Cache) ── 5 min TTL, instant hits
-                  └── Compression ── 10x memory reduction
+                  ├── Redis (Hot Cache) ── 5 min TTL, sub-ms hits
+                  └── OBCache Compression ── 10x memory reduction
 ```
 
-### How It Works
+### How It Saves Money
 
 1. **Request arrives** at `/v1/chat/completions`
 2. **Cache key** computed (SHA-256 of model + messages)
-3. **Redis hot tier** checked first — if hit, return in <1ms (zero LLM cost)
-4. **Full miss** → forward to LiteLLM → OpenAI/Anthropic/Gemini
-5. **Compress** response via OBCache saliency scoring (keeps top 10% most important KV chunks)
-6. **Store** compressed blob in Redis for future hits
+3. **Redis hot tier** checked — if hit, return in <1ms (zero LLM cost)
+4. **Full miss** → forward to LLM provider
+5. **Compress** response via OBCache (keep top 10% most important KV chunks)
+6. **Store** in Redis for future hits
 
-### Cost Savings Example
+### How It Saves Memory
 
 | Metric | Without InferCache | With InferCache |
 |--------|-------------------|-----------------|
-| 100K context request | $1.00 per call | $0.00 (cache hit) |
-| Repeated prompts | Full price every time | <1ms Redis response |
-| Memory per session | ~400MB (raw KV) | ~40MB (10x compressed) |
-| Daily cost (10K reqs) | ~$100 | ~$10 (90% hit rate) |
+| 100K-token session | ~400 MB (raw KV) | ~40 MB (10x compressed) |
+| 1,000 concurrent sessions | 400 GB RAM | 40 GB RAM |
+| Cost per repeated query | Full LLM price | $0.00 (Redis hit) |
 
 ---
 
 ## Features
 
-- ⚡ **10x KV-cache compression** — OBCache-style saliency scoring preserves quality
-- 🔥 **Redis hot tier** — sub-millisecond cache hits, 5-minute TTL
-- 🔀 **Multi-provider routing** — OpenAI, Anthropic, Gemini via LiteLLM
-- 📊 **Prometheus metrics** — memory saved, hit rate, cost savings, active sessions
-- 🔒 **Zero hardcoded secrets** — all API keys via environment variables
-- 🚀 **One-click Railway deploy** — production-ready in 60 seconds
-- 🧪 **29 passing tests** — compression, cache, metrics all verified
+- ⚡ **10x KV-cache compression** — OBCache-style saliency scoring preserves quality while reducing memory 10x
+- 🔥 **Redis hot tier** — Sub-millisecond cache hits, 5-minute TTL, transparent promotion
+- 🔀 **Multi-provider routing** — OpenAI, Anthropic, Gemini from a single endpoint
+- 📊 **Prometheus metrics** — Memory saved, hit rate, cost savings, active sessions
+- 🔒 **Zero hardcoded secrets** — All API keys via environment variables
+- 🚀 **One-click Railway deploy** — Production-ready in 60 seconds
+- 🧪 **29 passing tests** — Compression, cache, metrics all verified
+- 🆓 **Ollama support** — Free local models for testing (CPU, slower)
 
 ---
 
 ## Deploy
 
-### Railway (Recommended)
+### Railway (One-Click)
 
 [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?template=https://github.com/freedomcloud7/InferCache)
 
@@ -81,27 +87,18 @@ git clone https://github.com/freedomcloud7/InferCache.git
 cd InferCache
 
 # Install dependencies
-python -m venv .venv
-source .venv/bin/activate
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
 # Set API keys
-export OPENAI_API_KEY=sk-...
 export ANTHROPIC_API_KEY=sk-ant-...
-export GEMINI_API_KEY=AIza...
 
 # Start Redis (required for caching)
 docker run -d -p 6379:6379 redis:7-alpine
 
-# Start LiteLLM proxy (for multi-provider routing)
-pip install "litellm[proxy]"
-litellm --config infrastructure/docker/litellm-config.yaml --port 4000
-
 # Start the gateway
 python -m services.gateway
 ```
-
-The gateway runs on `http://localhost:8080`.
 
 ---
 
@@ -113,10 +110,24 @@ The gateway runs on `http://localhost:8080`.
 curl https://your-app.up.railway.app/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "gpt-4",
-    "messages": [{"role": "user", "content": "Explain quantum computing"}],
+    "model": "claude-3-haiku",
+    "messages": [{"role": "user", "content": "Explain quantum computing in one sentence"}],
     "temperature": 0.7
   }'
+```
+
+**Response:**
+```json
+{
+  "id": "msg_011Cf4Yq3XtZBpLTZMBGaxcT",
+  "object": "chat.completion",
+  "model": "claude-haiku-4-5-20251001",
+  "choices": [{
+    "message": {"role": "assistant", "content": "Quantum computing uses quantum mechanical phenomena..."},
+    "finish_reason": "stop"
+  }],
+  "usage": {"prompt_tokens": 22, "completion_tokens": 18, "total_tokens": 40}
+}
 ```
 
 ### Health Check
@@ -165,6 +176,14 @@ infercache_hit_rate 0.8700
 # HELP infercache_memory_saved_mb Memory saved via compression (MB)
 # TYPE infercache_memory_saved_mb gauge
 infercache_memory_saved_mb 245.30
+
+# HELP infercache_active_sessions Current active sessions
+# TYPE infercache_active_sessions gauge
+infercache_active_sessions 12
+
+# HELP infercache_cost_savings_usd Estimated cost savings (USD)
+# TYPE infercache_cost_savings_usd gauge
+infercache_cost_savings_usd 12.45
 ```
 
 ---
@@ -178,14 +197,22 @@ infercache_memory_saved_mb 245.30
 | `ANTHROPIC_API_KEY` | Yes* | — | Anthropic API key |
 | `GEMINI_API_KEY` | Yes* | — | Google Gemini API key |
 | `REDIS_URL` | No | redis://localhost:6379/0 | Redis connection URL |
-| `LITELLM_URL` | No | http://localhost:4000 | LiteLLM proxy URL |
+| `LITELLM_URL` | No | http://localhost:4000 | LLM provider URL |
 | `CACHE_TTL_HOT` | No | 300 | Hot cache TTL (seconds) |
 | `COMPRESSION_RATIO` | No | 10 | KV cache compression ratio |
-| `MINIO_ENDPOINT` | No | — | MinIO cold cache endpoint |
-| `MINIO_ACCESS_KEY` | No | — | MinIO access key |
-| `MINIO_SECRET_KEY` | No | — | MinIO secret key |
 
 \* At least one provider key is required for chat completions.
+
+---
+
+## Supported Models
+
+| Provider | Model Names | Notes |
+|----------|-------------|-------|
+| **Anthropic** | `claude-3-haiku`, `claude-3-sonnet`, `claude-3-opus` | Uses `/v1/messages` API |
+| **OpenAI** | `gpt-4`, `gpt-3.5-turbo`, `gpt-4-turbo` | Standard OpenAI API |
+| **Google** | `gemini-pro`, `gemini-1.5-pro` | Gemini API |
+| **Ollama** | `llama3.2:1b`, `qwen2:0.5b` | Free local models (CPU) |
 
 ---
 
@@ -193,18 +220,18 @@ infercache_memory_saved_mb 245.30
 
 ```
 ┌─────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│  Your App   │────▶│  InferCache      │────▶│  LiteLLM Proxy  │
-│             │◀────│  Gateway (8080)  │◀────│  (4000)         │
-└─────────────┘     └────────┬─────────┘     └────────┬────────┘
-                             │                        │
-                    ┌────────▼─────────┐     ┌────────▼────────┐
-                    │  Redis (Hot)     │     │  OpenAI         │
-                    │  TTL: 5 min      │     │  Anthropic      │
-                    │  Compressed KV   │     │  Gemini         │
-                    └──────────────────┘     └─────────────────┘
+│  Your App   │────▶│  InferCache      │────▶│  LLM Provider   │
+│             │◀────│  Gateway (8080)  │◀────│  (OpenAI/etc)   │
+└─────────────┘     └────────┬─────────┘     └─────────────────┘
+                             │
+                    ┌────────▼─────────┐
+                    │  Redis (Hot)     │
+                    │  TTL: 5 min      │
+                    │  Compressed KV   │
+                    └──────────────────┘
 ```
 
-### Cache Hit Flow (sub-millisecond)
+### Cache Hit Flow (sub-millisecond, $0 cost)
 
 1. Request → SHA-256 cache key lookup in Redis
 2. Cache HIT → Decompress KV → Return response
@@ -212,7 +239,7 @@ infercache_memory_saved_mb 245.30
 
 ### Cache Miss Flow
 
-1. Request → Forward to LiteLLM → Provider
+1. Request → Forward to LLM provider
 2. Response → OBCache compress (10x reduction) → Store in Redis
 3. Cost: Full LLM price | Latency: Normal inference
 
@@ -257,6 +284,9 @@ All **29 tests pass** — verified on Python 3.9+.
 | Multi-provider routing | ✅ Live |
 | Prometheus metrics | ✅ Live |
 | One-click Railway deploy | ✅ Live |
+| Anthropic direct integration | ✅ Live |
+| OpenAI direct integration | ✅ Live |
+| Ollama local backend | ✅ Live |
 | MinIO cold cache | 🔄 Planned |
 | Grafana dashboard | 🔄 Planned |
 | User management & API keys | 🔄 Planned |
