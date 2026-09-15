@@ -145,6 +145,14 @@ def _cache_key(model: str, messages: list[dict[str, str]]) -> str:
 # Routes
 # ---------------------------------------------------------------------------
 
+@app.get("/")
+async def root() -> dict[str, str]:
+    return {
+        "service": "infercache-gateway",
+        "status": "running",
+        "docs": "/health, /stats, /metrics, /v1/chat/completions",
+    }
+
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok", "service": "infercache-gateway"}
@@ -212,11 +220,14 @@ async def chat_completions(request: ChatRequest) -> Any:
     if is_anthropic and not model.startswith("anthropic/"):
         # Map friendly names to Anthropic model IDs
         anthropic_models = {
-            "claude-3-haiku": "claude-3-haiku-20240307",
-            "claude-3-sonnet": "claude-3-sonnet-20240229",
-            "claude-3-opus": "claude-3-opus-20240229",
-            "claude-3-5-haiku": "claude-3-5-haiku-20241022",
-            "claude-3.5-sonnet": "claude-3-5-sonnet-20241022",
+            "claude-3-haiku": "claude-haiku-4-5-20251001",
+            "claude-haiku": "claude-haiku-4-5-20251001",
+            "claude-3-sonnet": "claude-sonnet-4-5-20250929",
+            "claude-sonnet": "claude-sonnet-4-5-20250929",
+            "claude-3-opus": "claude-opus-4-5-20251101",
+            "claude-opus": "claude-opus-4-5-20251101",
+            "claude-3-5-haiku": "claude-haiku-4-5-20251001",
+            "claude-3.5-sonnet": "claude-sonnet-4-5-20250929",
         }
         model = anthropic_models.get(model, model)
 
