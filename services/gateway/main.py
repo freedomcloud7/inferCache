@@ -195,21 +195,84 @@ async def chat_completions(request: ChatRequest) -> Any:
     # Forward to LiteLLM
     # Build headers — inject upstream API key if configured
     headers = {"Content-Type": "application/json"}
-    if settings.UPSTREAM_API_KEY:
-        # Anthropic uses x-api-key, not Authorization: Bearer
-        headers["x-api-key"] = settings.UPSTREAM_API_KEY
+    is_anthropic = "anthropic.com" in settings.LITELLM_URL
+    is_openrouter = "openrouter.ai" in settings.LITELLM_URL
+
+    if is_anthropic:
+        # Anthropic uses x-api-key + anthropic-version
+        api_key = settings.UPSTREAM_API_KEY
+        headers["x-api-key"] = api_key
         headers["anthropic-version"] = "2023-06-01"
+    elif settings.UPSTREAM_API_KEY:
+        # OpenAI / OpenRouter use Bearer token
+        headers["Authorization"] = f"Bearer {settings.UPSTREAM_API_KEY}"
+
+    # Handle model routing
+    model = request.model
+    if is_anthropic and not model.startswith("anthropic/"):
+        # Map friendly names to Anthropic model IDs
+        anthropic_models = {
+            "claude-3-haiku": "claude-3-haiku-20240307",
+            "claude-3-sonnet": "claude-3-sonnet-20240229",
+            "claude-3-opus": "claude-3-opus-20240229",
+            "claude-3-5-haiku": "claude-3-5-haiku-20241022",
+            "claude-3.5-sonnet": "claude-3-5-sonnet-20241022",
+        }
+        model = anthropic_models.get(model, model)
+
+    # Build request body
+    body = {
+        "model": model,
+        "messages": request.messages,
+        "max_tokens": request.max_tokens,
+    }
+    if request.temperature is not None:
+        body["temperature"] = request.temperature
+    if request.stream:
+        body["stream"] = True
+
+    # Choose URL and response handling
+    url = f"{settings.LITELLM_URL}/v1/chat/completions"
+    if is_anthropic:
+        # Anthropic uses /v1/messages
+        url = f"{settings.LITELLM_URL}/v1/messages"
+        # Remove OpenAI-specific fields
+        body.pop("temperature", None)
 
     try:
-        response = await state.http_client.post(
-            f"{settings.LITELLM_URL}/v1/chat/completions",
-            json=request.model_dump(),
-            headers=headers,
-        )
+        response = await state.http_client.post(url, json=body, headers=headers)
         response.raise_for_status()
         payload = response.json()
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"Upstream error: {exc}")
+
+    # Normalize Anthropic response to OpenAI format
+    if is_anthropic:
+        content = ""
+        if payload.get("content"):
+            for block in payload["content"]:
+                if block.get("type") == "text":
+                    content += block.get("text", "")
+        anthropic_model = payload.get("model", request.model)
+        payload = {
+            "id": payload.get("id", "chatcmpl-normalized"),
+            "object": "chat.completion",
+            "created": int(time.time()),
+            "model": anthropic_model,
+            "choices": [{
+                "index": 0,
+                "message": {"role": "assistant", "content": content},
+                "finish_reason": "stop",
+            }],
+            "usage": {
+                "prompt_tokens": payload.get("usage", {}).get("input_tokens", 0),
+                "completion_tokens": payload.get("usage", {}).get("output_tokens", 0),
+                "total_tokens": (
+                    payload.get("usage", {}).get("input_tokens", 0)
+                    + payload.get("usage", {}).get("output_tokens", 0)
+                ),
+            },
+        }
 
     compressed = state.compressor.compress_kv(payload)
     if state.cache is not None:
