@@ -35,23 +35,21 @@ class ChatRequest(BaseModel):
 
 @app.post("/v1/chat/completions")
 async def chat_completions(request: ChatRequest) -> Any:
-    """Proxy chat completions to local Ollama."""
+    """Proxy chat completions to local Ollama using OpenAI-compatible API."""
     
-    # Build Ollama request
+    # Build OpenAI-formatted request for Ollama's v1 endpoint
     body = {
         "model": request.model,
         "messages": request.messages,
-        "stream": False,
-        "options": {
-            "temperature": request.temperature,
-            "num_predict": request.max_tokens,
-        }
+        "max_tokens": request.max_tokens,
+        "temperature": request.temperature,
+        "stream": request.stream,
     }
 
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:
             resp = await client.post(
-                f"{OLLAMA_URL}/api/chat",
+                f"{OLLAMA_URL}/v1/chat/completions",
                 json=body,
             )
             resp.raise_for_status()
@@ -59,32 +57,7 @@ async def chat_completions(request: ChatRequest) -> Any:
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"Ollama error: {exc}")
 
-    # Convert Ollama response to OpenAI format
-    ollama_message = data.get("message", {})
-    content = ollama_message.get("content", "")
-    
-    prompt_eval_count = data.get("prompt_eval_count", 0)
-    eval_count = data.get("eval_count", 0)
-    
-    return JSONResponse(content={
-        "id": f"chatcmpl-{os.urandom(8).hex()}",
-        "object": "chat.completion",
-        "created": int(__import__("time").time()),
-        "model": request.model,
-        "choices": [{
-            "index": 0,
-            "message": {
-                "role": "assistant",
-                "content": content,
-            },
-            "finish_reason": "stop" if data.get("done", True) else "length",
-        }],
-        "usage": {
-            "prompt_tokens": prompt_eval_count,
-            "completion_tokens": eval_count,
-            "total_tokens": prompt_eval_count + eval_count,
-        },
-    })
+    return JSONResponse(content=data)
 
 if __name__ == "__main__":
     import uvicorn
