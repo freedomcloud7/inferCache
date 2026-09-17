@@ -7,14 +7,18 @@ COPY pyproject.toml .
 RUN pip install --no-cache-dir -e ".[test]"
 
 # Copy source
-COPY services/ services/
-COPY tests/ tests/
+COPY main.py .
+COPY requirements.txt .
+COPY services/ services/ 2>/dev/null || true
+
+# Install requirements
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Environment
 ENV PYTHONPATH=/app
-ENV GATEWAY_PORT=8080
+ENV PORT=8080
 ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8080
 
-CMD ["sh", "-c", "uvicorn services.gateway.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "${PORT:-8080}"]
