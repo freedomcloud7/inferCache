@@ -52,7 +52,7 @@ async def root() -> dict[str, str]:
         "service": "infercache-gateway",
         "status": "running",
         "provider": "openrouter" if OPENROUTER_API_KEY else "local-ollama",
-        "docs": "/health",
+        "docs": "/health, /v1/chat/completions",
     }
 
 
@@ -75,7 +75,7 @@ async def chat_completions(request: ChatRequest, req: Request) -> Any:
 
 async def chat_via_openrouter(request: ChatRequest) -> Any:
     headers = {
-        "Authorization": "Bearer ${OPENROUTER_API_KEY}",
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
         "HTTP-Referer": "https://hermes-agent.nousresearch.com",
         "X-Title": "InferCache-Gateway",
