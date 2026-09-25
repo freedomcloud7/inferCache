@@ -1,4 +1,4 @@
-"""InferCache Gateway - OpenRouter Edition for easy deployment with one key."
+"""InferCache Gateway - OpenRouter Edition for easy deployment with one key."""
 
 import os
 import time
@@ -9,11 +9,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Any
 
+
 app = FastAPI(
     title="InferCache Gateway",
     description="KV-cache-optimized LLM routing via OpenRouter (single API key)",
     version="1.1.0",
 )
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -22,9 +24,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 OLLAMA_URL = os.getenv("OLLAMA_URL", "")
 VALID_API_KEYS = set(k.strip() for k in os.getenv("API_KEYS", "").split(",") if k.strip())
+
 
 def verify_api_key(request: Request):
     if not VALID_API_KEYS:
@@ -48,7 +52,7 @@ async def root() -> dict[str, str]:
         "service": "infercache-gateway",
         "status": "running",
         "provider": "openrouter" if OPENROUTER_API_KEY else "local-ollama",
-        "docs": "/health, /v1/chat/completions",
+        "docs": "/health",
     }
 
 
@@ -71,7 +75,7 @@ async def chat_completions(request: ChatRequest, req: Request) -> Any:
 
 async def chat_via_openrouter(request: ChatRequest) -> Any:
     headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Authorization": "Bearer ${OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
         "HTTP-Referer": "https://hermes-agent.nousresearch.com",
         "X-Title": "InferCache-Gateway",
@@ -89,7 +93,7 @@ async def chat_via_openrouter(request: ChatRequest) -> Any:
 async def chat_via_ollama(request: ChatRequest) -> Any:
     headers = {"Content-Type": "application/json"}
     body = {"model": request.model, "messages": request.messages, "max_tokens": request.max_tokens, "temperature": request.temperature, "stream": False}
-    src = OLLAMA_URL.replace(//$/, "")
+    src = OLLAMA_URL.rstrip("/")
     async with httpx.AsyncClient(timeout=120.0) as client:
         response = await client.post(src + "/v1/chat/completions", json=body, headers=headers)
         if response.status_code >= 400:
