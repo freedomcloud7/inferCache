@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InferCache - One key. Every model. $39/month.</title>
+<meta name="description" content="OpenAI-compatible LLM gateway. Every model via one API key. Flat $39/month, no per-token bills.">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,monospace;background:#0a0a0f;color:#e5e7eb;line-height:1.6}
+.wrap{max-width:860px;margin:0 auto;padding:0 24px}
+nav{display:flex;justify-content:space-between;align-items:center;padding:24px 0;border-bottom:1px solid #1f2937}
+.logo{font-size:20px;font-weight:700;color:#a78bfa}
+.pill{background:#1f2937;border:1px solid #374151;border-radius:999px;padding:6px 16px;font-size:13px;color:#9ca3af}
+.hero{text-align:center;padding:96px 0 72px}
+h1{font-size:52px;line-height:1.1;font-weight:800;background:linear-gradient(135deg,#a78bfa,#60a5fa,#34d399);-webkit-background-clip:text;background-clip:text;color:transparent;margin-bottom:24px}
+.sub{font-size:19px;color:#9ca3af;max-width:640px;margin:0 auto 40px}
+.cta{display:inline-block;background:#a78bfa;color:#0a0a0f;font-weight:700;font-size:18px;padding:16px 40px;border-radius:10px;text-decoration:none}
+.cta:hover{background:#c4b5fd}
+.note{margin-top:16px;font-size:13px;color:#6b7280}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;padding:48px 0}
+.card{background:#111827;border:1px solid #1f2937;border-radius:12px;padding:24px}
+.card h3{font-size:16px;margin-bottom:8px;color:#e5e7eb}
+.card p{font-size:14px;color:#9ca3af}
+.code{background:#111827;border:1px solid #1f2937;border-radius:12px;padding:24px;margin:24px 0;overflow-x:auto}
+.code pre{font-family:ui-monospace,Menlo,monospace;font-size:13px;color:#34d399;white-space:pre}
+section{padding:32px 0}
+h2{font-size:28px;margin-bottom:16px}
+.price{font-size:64px;font-weight:800;color:#a78bfa}
+.per{color:#6b7280}
+ul{list-style:none;padding:0}
+li{padding:6px 0 6px 26px;position:relative;color:#d1d5db}
+li:before{content:"\2713";position:absolute;left:0;color:#34d399;font-weight:700}
+footer{border-top:1px solid #1f2937;margin-top:64px;padding:32px 0;text-align:center;color:#6b7280;font-size:13px}
+a{color:#a78bfa}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav>
+<div class="logo">InferCache</div>
+<div class="pill">API v1.1.1 - Live</div>
+</nav>
+<div class="hero">
+<h1>One key. Every model.<br>$39/month.</h1>
+<p class="sub">InferCache is an OpenAI-compatible LLM gateway. Point your existing code at our endpoint, swap one line, and get GPT-4o, Claude, Llama, DeepSeek and more. No per-token bills. No surprise invoices.</p>
+<a class="cta" href="https://buy.stripe.com/bJe8wO0UP2UP1yz2EC9Ve01">Get your API key - $39/mo</a>
+<p class="note">Cancel anytime. Key delivered within minutes of checkout.</p>
+</div>
+<div class="grid">
+<div class="card"><h3>Drop-in compatible</h3><p>Same /v1/chat/completions format as OpenAI. Your existing code works unchanged - just swap the base URL and key.</p></div>
+<div class="card"><h3>Every model</h3><p>Access the full OpenRouter catalog through one endpoint: GPT-4o, Claude, Llama, DeepSeek, Mistral and more.</p></div>
+<div class="card"><h3>Flat pricing</h3><p>$39 per month. That is the entire pricing page. Budget your AI product without a calculator.</p></div>
+<div class="card"><h3>Your own key</h3><p>Unique, revocable API key per customer. Keys are gated at the edge - no key, no access.</p></div>
+</div>
+<section>
+<h2>Works with your stack</h2>
+<div class="code"><pre>curl -X POST https://authentic-courage-production-8e0c.up.railway.app/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_KEY" \
+  -d '{
+    "model": "gpt-4o-mini",
+    "messages": [{"role": "user", "content": "hello"}]
+  }'</pre></div>
+</section>
+<section style="text-align:center">
+<div class="price">$39<span class="per">/month</span></div>
+<ul style="max-width:420px;margin:24px auto;text-align:left">
+<li>Unlimited models, fair use</li>
+<li>OpenAI-compatible endpoint</li>
+<li>Personal revocable API key</li>
+<li>Redundant replicas, always on</li>
+<li>Cancel anytime</li>
+</ul>
+<a class="cta" href="https://buy.stripe.com/bJe8wO0UP2UP1yz2EC9Ve01">Start building</a>
+</section>
+<footer>
+<p>InferCache Gateway - Built by an indie hacker, for indie hackers.</p>
+<p style="margin-top:8px">API status: <a href="https://authentic-courage-production-8e0c.up.railway.app/health">/health</a></p>
+</footer>
+</div>
+</body>
+</html>
