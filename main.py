@@ -13,7 +13,7 @@ from typing import Any
 app = FastAPI(
     title="InferCache Gateway",
     description="KV-cache-optimized LLM routing via OpenRouter (single API key)",
-    version="1.1.0",
+    version="1.1.1",
 )
 
 
@@ -87,7 +87,7 @@ async def chat_via_openrouter(request: ChatRequest) -> Any:
         response = await client.post("https://openrouter.ai/api/v1/chat/completions", json=body, headers=headers)
         if response.status_code >= 400:
             raise HTTPException(status_code=502, detail=f"OpenRouter error: {response.text}")
-        return await response.json()
+        return response.json()
 
 
 async def chat_via_ollama(request: ChatRequest) -> Any:
@@ -98,7 +98,7 @@ async def chat_via_ollama(request: ChatRequest) -> Any:
         response = await client.post(src + "/v1/chat/completions", json=body, headers=headers)
         if response.status_code >= 400:
             raise HTTPException(status_code=502, detail=f"Ollama error: {response.text}")
-        return await response.json()
+        return response.json()
 
 
 if __name__ == "__main__":
